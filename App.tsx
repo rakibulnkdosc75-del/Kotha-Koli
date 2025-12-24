@@ -81,7 +81,12 @@ const App: React.FC = () => {
       <Sidebar currentView={currentView} onNavigate={setCurrentView} onNewStory={handleCreateStory} />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {currentView === View.EDITOR && activeStory && (
-          <Editor story={activeStory} onUpdate={(u) => updateStory(activeStory.id, u)} maturity={settings.maturityLevel} />
+          <Editor 
+            story={activeStory} 
+            onUpdate={(u) => updateStory(activeStory.id, u)} 
+            settings={settings}
+            onNavigateToMedia={() => setCurrentView(View.MEDIA_LAB)}
+          />
         )}
         {currentView === View.EDITOR && !activeStory && (
           <div className="flex-1 flex items-center justify-center flex-col space-y-4">

@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 
 export class GeminiService {
-  // Use a method to get a fresh instance to avoid stale keys
   private getAI() {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
@@ -30,6 +29,20 @@ export class GeminiService {
     });
 
     return response.text || '';
+  }
+
+  async translateToVisualPrompt(bengaliText: string, isMature: boolean): Promise<string> {
+    const ai = this.getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Translate this Bengali story segment into a highly descriptive English visual prompt for a cinematic video generator. 
+      Maintain the mood: ${isMature ? 'Atmospheric, artistic, sensual, moody adult drama' : 'Wholesome, cinematic, vibrant'}. 
+      Text: "${bengaliText}"`,
+      config: {
+        systemInstruction: "Respond ONLY with the English prompt string. No explanations."
+      }
+    });
+    return response.text || bengaliText;
   }
 
   async generateStoryImage(prompt: string, isMature: boolean = false, quality: string = '1K'): Promise<string | undefined> {
@@ -82,25 +95,29 @@ export class GeminiService {
     return undefined;
   }
 
-  async generateVideoFromImage(base64Image: string, prompt: string): Promise<string | undefined> {
+  async generateVideo(prompt: string, base64Image?: string): Promise<string | undefined> {
     const ai = this.getAI();
-    
-    let operation = await ai.models.generateVideos({
+    const payload: any = {
       model: 'veo-3.1-fast-generate-preview',
       prompt: prompt,
-      image: {
-        imageBytes: base64Image.split(',')[1],
-        mimeType: 'image/png',
-      },
       config: {
         numberOfVideos: 1,
         resolution: '720p',
         aspectRatio: '16:9'
       }
-    });
+    };
+
+    if (base64Image) {
+      payload.image = {
+        imageBytes: base64Image.split(',')[1],
+        mimeType: 'image/png',
+      };
+    }
+    
+    let operation = await ai.models.generateVideos(payload);
 
     while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 10000));
       operation = await ai.operations.getVideosOperation({ operation: operation });
     }
 
