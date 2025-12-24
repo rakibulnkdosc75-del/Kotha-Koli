@@ -6,9 +6,10 @@ import { gemini } from '../services/gemini';
 interface MediaLabProps {
   story: Story;
   onUpdate: (updates: Partial<Story>) => void;
+  isDarkMode: boolean;
 }
 
-const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
+const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate, isDarkMode }) => {
   const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -58,11 +59,7 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
     setIsGenerating(true);
     try {
       await ensureApiKey();
-      
-      // Step 1: Translate/Enhance prompt for visual generator
       const visualPrompt = await gemini.translateToVisualPrompt(videoPromptRaw, story.maturity === 'mature');
-      
-      // Step 2: Generate Video
       const videoUrl = await gemini.generateVideo(visualPrompt, sourceAsset?.url);
       
       if (videoUrl) {
@@ -103,29 +100,32 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
     }
   };
 
+  const cardClass = `p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`;
+  const textareaClass = `w-full p-4 rounded-xl border outline-none transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white focus:border-red-500' : 'bg-white border-gray-300 focus:ring-2 focus:ring-red-200'}`;
+
   return (
-    <div className="flex-1 p-8 bg-white overflow-hidden flex flex-col">
+    <div className={`flex-1 p-8 overflow-hidden flex flex-col transition-colors duration-500 ${isDarkMode ? 'bg-gray-950' : 'bg-white'}`}>
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-red-950">মিডিয়া ল্যাব (Media Lab)</h2>
-          <p className="text-gray-600 mt-1">গল্পের জন্য দৃশ্য এবং ভিডিও তৈরি করুন</p>
+          <h2 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-red-950'}`}>মিডিয়া ল্যাব (Media Lab)</h2>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>গল্পের জন্য দৃশ্য এবং ভিডিও তৈরি করুন</p>
         </div>
         <div className="flex gap-2">
           <button 
             onClick={() => setActiveTab('image')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'image' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'image' ? 'bg-red-800 text-white' : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600')}`}
           >
             ছবি (Images)
           </button>
           <button 
             onClick={() => setActiveTab('video')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm ${activeTab === 'video' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'video' ? 'bg-red-800 text-white' : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600')}`}
           >
             ভিডিও (Video)
           </button>
           <button 
             onClick={() => (window as any).aistudio?.openSelectKey()}
-            className="px-4 py-2 text-xs font-bold border rounded-lg hover:bg-gray-50 transition-colors ml-4"
+            className={`px-4 py-2 text-xs font-bold border rounded-lg transition-colors ml-4 ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
           >
             🔑 API কী
           </button>
@@ -135,23 +135,23 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
       <div className="flex gap-8 flex-1 min-h-0">
         <div className="w-1/3 space-y-6 overflow-y-auto pr-2">
           {activeTab === 'image' ? (
-            <div className="bg-gray-50 p-6 rounded-2xl border">
+            <div className={cardClass}>
               <h3 className="font-bold mb-4 flex items-center gap-2">🖼️ নতুন হাই-কোয়ালিটি ছবি</h3>
               <textarea 
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="গল্পের দৃশ্য বর্ণনা করুন (বাংলায় বা ইংরেজিতে)..."
-                className="w-full p-4 rounded-xl border border-gray-300 h-32 mb-4 focus:ring-2 focus:ring-red-200 outline-none"
+                className={textareaClass + " h-32 mb-4"}
               />
               
               <div className="mb-4">
-                <label className="text-xs font-bold text-gray-500 block mb-2">কোয়ালিটি (Image Size)</label>
+                <label className="text-xs font-bold opacity-60 block mb-2">কোয়ালিটি (Image Size)</label>
                 <div className="flex gap-2">
                   {(['1K', '2K', '4K'] as ImageQuality[]).map(q => (
                     <button 
                       key={q}
                       onClick={() => setQuality(q)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${quality === q ? 'bg-red-800 text-white border-red-800' : 'bg-white text-gray-700 border-gray-300'}`}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${quality === q ? 'bg-red-800 text-white border-red-800' : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white text-gray-700 border-gray-300')}`}
                     >
                       {q}
                     </button>
@@ -168,14 +168,14 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
               </button>
             </div>
           ) : (
-            <div className="bg-gray-50 p-6 rounded-2xl border">
+            <div className={cardClass}>
               <h3 className="font-bold mb-4 flex items-center gap-2">🎬 ভিডিও এনিমেশন</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">গল্পের একটি অংশ ভিডিওতে রূপান্তর করুন। নিচে বর্ণনা দিন অথবা ডানপাশ থেকে একটি ছবি সিলেক্ট করে এনিমেট করুন।</p>
+              <p className="text-xs opacity-60 mb-4 leading-relaxed">গল্পের একটি অংশ ভিডিওতে রূপান্তর করুন। নিচে বর্ণনা দিন অথবা ডানপাশ থেকে একটি ছবি সিলেক্ট করে এনিমেট করুন।</p>
               <textarea 
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="ভিডিওর জন্য দৃশ্য বর্ণনা দিন..."
-                className="w-full p-4 rounded-xl border border-gray-300 h-32 mb-4 focus:ring-2 focus:ring-red-200 outline-none"
+                className={textareaClass + " h-32 mb-4"}
               />
               <button 
                 onClick={() => createVideo()}
@@ -188,27 +188,27 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
           )}
 
           {selectedAsset && selectedAsset.type === 'image' && (
-            <div className="bg-yellow-50 p-6 rounded-2xl border border-yellow-200">
+            <div className={`p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-red-950/20 border-red-900/40 text-red-100' : 'bg-yellow-50 border-yellow-200 text-yellow-950'}`}>
               <h3 className="font-bold mb-4 flex items-center gap-2">🎨 ছবি এডিট করুন</h3>
               <textarea 
                 value={editPrompt}
                 onChange={(e) => setEditPrompt(e.target.value)}
                 placeholder="পরিবর্তন বর্ণনা করুন..."
-                className="w-full p-4 rounded-xl border border-yellow-300 h-24 mb-4 outline-none"
+                className={`${textareaClass} h-24 mb-4 ${isDarkMode ? 'bg-black/20 border-red-900/30' : 'bg-white border-yellow-300'}`}
               />
               <div className="flex gap-2">
                 <button onClick={handleEditImage} className="flex-1 py-3 bg-yellow-600 text-white rounded-xl font-bold">এডিট</button>
-                <button onClick={() => setSelectedAsset(null)} className="px-4 py-3 bg-white border border-yellow-300 rounded-xl">বাতিল</button>
+                <button onClick={() => setSelectedAsset(null)} className={`px-4 py-3 border rounded-xl ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-yellow-300'}`}>বাতিল</button>
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex-1 bg-gray-50 rounded-3xl p-8 border overflow-y-auto">
-          <h3 className="font-bold mb-6 text-gray-700 uppercase tracking-wider text-sm">গল্পের মিডিয়া গ্যালারি</h3>
+        <div className={`flex-1 rounded-3xl p-8 border overflow-y-auto transition-colors ${isDarkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
+          <h3 className={`font-bold mb-6 uppercase tracking-wider text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-700'}`}>গল্পের মিডিয়া গ্যালারি</h3>
           <div className="grid grid-cols-2 gap-6">
             {story.assets.map((asset) => (
-              <div key={asset.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border group relative">
+              <div key={asset.id} className={`rounded-2xl overflow-hidden shadow-sm border group relative transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                 {asset.type === 'image' ? (
                   <img src={asset.url} className="w-full aspect-video object-cover" alt={asset.prompt} />
                 ) : (
@@ -216,13 +216,13 @@ const MediaLab: React.FC<MediaLabProps> = ({ story, onUpdate }) => {
                 )}
                 <div className="p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <p className="text-xs text-gray-500 line-clamp-1 italic">{asset.prompt}</p>
-                    {asset.type === 'image' && asset.quality && <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded">{asset.quality}</span>}
+                    <p className={`text-xs italic line-clamp-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{asset.prompt}</p>
+                    {asset.type === 'image' && asset.quality && <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>{asset.quality}</span>}
                   </div>
                   <div className="flex gap-2">
                     {asset.type === 'image' && (
                       <>
-                        <button onClick={() => setSelectedAsset(asset)} className="flex-1 py-2 text-[10px] font-bold bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">এডিট</button>
+                        <button onClick={() => setSelectedAsset(asset)} className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>এডিট</button>
                         <button 
                           onClick={() => createVideo(asset)} 
                           disabled={isGenerating}

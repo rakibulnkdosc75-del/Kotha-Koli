@@ -1,9 +1,19 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 
+// Approximate limit to stay well within 8192 token boundary for Gemini-3 models
+const MAX_CONTEXT_CHARS = 12000; 
+const MAX_TTS_CHARS = 5000;
+
 export class GeminiService {
   private getAI() {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+
+  private truncateContext(content: string): string {
+    if (content.length <= MAX_CONTEXT_CHARS) return content;
+    // Keep the most recent parts of the story for better continuity
+    return "..." + content.slice(-MAX_CONTEXT_CHARS);
   }
 
   async generateStory(prompt: string, maturity: string, tone: string = 'Standard'): Promise<string> {
@@ -19,9 +29,12 @@ export class GeminiService {
     Write wholesome, engaging, and family-friendly stories.`}
     Always respond in beautiful, fluent Bengali.`;
 
+    // Prompt construction with truncated context
+    const truncatedContent = this.truncateContext(prompt);
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: prompt,
+      contents: truncatedContent,
       config: {
         systemInstruction,
         temperature: 0.85,
@@ -37,7 +50,7 @@ export class GeminiService {
       model: 'gemini-3-flash-preview',
       contents: `Translate this Bengali story segment into a highly descriptive English visual prompt for a cinematic video generator. 
       Maintain the mood: ${isMature ? 'Atmospheric, artistic, sensual, moody adult drama' : 'Wholesome, cinematic, vibrant'}. 
-      Text: "${bengaliText}"`,
+      Text: "${bengaliText.slice(-2000)}"`, // Visual context only needs the recent scene
       config: {
         systemInstruction: "Respond ONLY with the English prompt string. No explanations."
       }
@@ -49,10 +62,13 @@ export class GeminiService {
     const ai = this.getAI();
     const contextPrefix = isMature ? "Atmospheric, moody, cinematic, sensual aesthetic, artistic adult fiction style: " : "Wholesome, vibrant, cinematic: ";
     
+    // Ensure the prompt isn't too long for image generation
+    const cleanPrompt = prompt.length > 1000 ? prompt.slice(-1000) : prompt;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: {
-        parts: [{ text: `${contextPrefix} ${prompt}` }],
+        parts: [{ text: `${contextPrefix} ${cleanPrompt}` }],
       },
       config: {
         imageConfig: {
@@ -99,7 +115,7 @@ export class GeminiService {
     const ai = this.getAI();
     const payload: any = {
       model: 'veo-3.1-fast-generate-preview',
-      prompt: prompt,
+      prompt: prompt.slice(0, 1000), // Prompt length limit for video
       config: {
         numberOfVideos: 1,
         resolution: '720p',
@@ -132,11 +148,14 @@ export class GeminiService {
 
   async generateSpeech(text: string, tone: string = 'Standard'): Promise<string | undefined> {
     const ai = this.getAI();
-    const voiceName = tone === 'Romantic' || tone === 'Erotic' ? 'Kore' : 'Puck'; // Kore is softer, Puck is standard narrative
+    const voiceName = tone === 'Romantic' || tone === 'Erotic' ? 'Kore' : 'Puck';
     
+    // Narrate only a chunk if the text is exceptionally long to avoid API limits
+    const narratableText = text.length > MAX_TTS_CHARS ? text.slice(0, MAX_TTS_CHARS) + "..." : text;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Narrate this Bengali story with a ${tone.toLowerCase()} tone: ${text}` }] }],
+      contents: [{ parts: [{ text: `Narrate this Bengali story with a ${tone.toLowerCase()} tone: ${narratableText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {

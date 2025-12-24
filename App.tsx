@@ -22,7 +22,8 @@ const App: React.FC = () => {
       maturityLevel: MaturityLevel.GENERAL,
       isConfirmedAdult: false,
       blurMatureThumbnails: true,
-      defaultImageQuality: '1K'
+      defaultImageQuality: '1K',
+      isDarkMode: false
     };
   });
 
@@ -76,8 +77,12 @@ const App: React.FC = () => {
     if (activeStoryId === id) setActiveStoryId(null);
   };
 
+  const updateSettings = (newSettings: AppSettings) => {
+    setSettings(newSettings);
+  };
+
   return (
-    <div className="flex h-screen bg-[#fdfbf7] text-gray-900 overflow-hidden">
+    <div className={`flex h-screen overflow-hidden transition-colors duration-500 ${settings.isDarkMode ? 'bg-gray-950 text-white' : 'bg-[#fdfbf7] text-gray-900'}`}>
       <Sidebar currentView={currentView} onNavigate={setCurrentView} onNewStory={handleCreateStory} />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {currentView === View.EDITOR && activeStory && (
@@ -85,17 +90,18 @@ const App: React.FC = () => {
             story={activeStory} 
             onUpdate={(u) => updateStory(activeStory.id, u)} 
             settings={settings}
+            onUpdateSettings={updateSettings}
             onNavigateToMedia={() => setCurrentView(View.MEDIA_LAB)}
           />
         )}
         {currentView === View.EDITOR && !activeStory && (
           <div className="flex-1 flex items-center justify-center flex-col space-y-4">
-            <h2 className="text-3xl font-bold text-gray-400">আপনার গল্প শুরু করুন</h2>
+            <h2 className={`text-3xl font-bold ${settings.isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>আপনার গল্প শুরু করুন</h2>
             <button onClick={handleCreateStory} className="px-6 py-3 bg-red-800 text-white rounded-lg hover:bg-red-900 transition-colors">নতুন গল্প লিখুন</button>
           </div>
         )}
         {currentView === View.LIBRARY && (
-          <Library stories={stories} onSelect={(id) => { setActiveStoryId(id); setCurrentView(View.EDITOR); }} onDelete={deleteStory} onImport={handleImportStory} blurMature={settings.blurMatureThumbnails} />
+          <Library stories={stories} onSelect={(id) => { setActiveStoryId(id); setCurrentView(View.EDITOR); }} onDelete={deleteStory} onImport={handleImportStory} blurMature={settings.blurMatureThumbnails} isDarkMode={settings.isDarkMode} />
         )}
         {currentView === View.SETTINGS && (
           <Settings settings={settings} onUpdate={setSettings} />
@@ -117,10 +123,10 @@ const App: React.FC = () => {
           />
         )}
         {currentView === View.MEDIA_LAB && activeStory && (
-          <MediaLab story={activeStory} onUpdate={(u) => updateStory(activeStory.id, u)} />
+          <MediaLab story={activeStory} onUpdate={(u) => updateStory(activeStory.id, u)} isDarkMode={settings.isDarkMode} />
         )}
         {currentView === View.MEDIA_LAB && !activeStory && (
-          <div className="flex-1 flex items-center justify-center text-gray-400">দয়া করে প্রথমে একটি গল্প নির্বাচন করুন</div>
+          <div className={`flex-1 flex items-center justify-center ${settings.isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>দয়া করে প্রথমে একটি গল্প নির্বাচন করুন</div>
         )}
       </main>
     </div>

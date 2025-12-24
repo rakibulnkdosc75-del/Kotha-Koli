@@ -40,5 +40,6 @@ export interface AppSettings {
   isConfirmedAdult: boolean;
   blurMatureThumbnails: boolean;
   defaultImageQuality: ImageQuality;
+  isDarkMode: boolean;
   apiKey?: string;
 }
