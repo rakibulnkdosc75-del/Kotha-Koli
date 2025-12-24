@@ -48,6 +48,21 @@ const App: React.FC = () => {
     setCurrentView(View.EDITOR);
   };
 
+  const handleImportStory = (title: string, content: string) => {
+    const newStory: Story = {
+      id: Date.now().toString(),
+      title: title || 'ইমপোর্ট করা গল্প',
+      content: content,
+      genre: 'Imported',
+      maturity: settings.maturityLevel,
+      updatedAt: Date.now(),
+      assets: []
+    };
+    setStories([newStory, ...stories]);
+    setActiveStoryId(newStory.id);
+    setCurrentView(View.EDITOR);
+  };
+
   const updateStory = (id: string, updates: Partial<Story>) => {
     setStories(prev => prev.map(s => s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s));
   };
@@ -89,6 +104,7 @@ const App: React.FC = () => {
             stories={stories} 
             onSelect={(id) => { setActiveStoryId(id); setCurrentView(View.EDITOR); }} 
             onDelete={deleteStory}
+            onImport={handleImportStory}
           />
         )}
         {currentView === View.SETTINGS && (

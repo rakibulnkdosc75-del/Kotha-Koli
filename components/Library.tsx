@@ -1,27 +1,67 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Story, MaturityLevel } from '../types';
 
 interface LibraryProps {
   stories: Story[];
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onImport: (title: string, content: string) => void;
 }
 
-const Library: React.FC<LibraryProps> = ({ stories, onSelect, onDelete }) => {
+const Library: React.FC<LibraryProps> = ({ stories, onSelect, onDelete, onImport }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const title = file.name.replace(/\.[^/.]+$/, ""); // Strip extension for title
+      onImport(title, content);
+      // Reset input so the same file can be imported again if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      alert("ফাইলটি পড়তে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="flex-1 p-10 bg-[#fdfbf7] overflow-y-auto">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-end mb-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
           <div>
             <h2 className="text-4xl font-bold text-red-950">আমার লাইব্রেরি (My Library)</h2>
             <p className="text-gray-600 mt-2">আপনার সকল সৃষ্টি এখানে সংরক্ষিত আছে</p>
           </div>
+          <div className="flex gap-3">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept=".txt" 
+              className="hidden" 
+            />
+            <button 
+              onClick={handleImportClick}
+              className="px-5 py-2.5 bg-white border-2 border-red-800 text-red-800 font-bold rounded-xl hover:bg-red-50 transition-all flex items-center gap-2 shadow-sm"
+            >
+              <span>📥</span> গল্প ইমপোর্ট করুন
+            </button>
+          </div>
         </div>
 
         {stories.length === 0 ? (
-          <div className="text-center py-40 border-2 border-dashed border-gray-200 rounded-3xl">
-            <p className="text-gray-400 text-xl">আপনার কোনো গল্প নেই। একটি নতুন গল্প লিখে শুরু করুন।</p>
+          <div className="text-center py-40 border-2 border-dashed border-gray-200 rounded-3xl bg-white/50">
+            <p className="text-gray-400 text-xl">আপনার কোনো গল্প নেই। একটি নতুন গল্প লিখে অথবা ফাইল ইমপোর্ট করে শুরু করুন।</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -54,9 +94,16 @@ const Library: React.FC<LibraryProps> = ({ stories, onSelect, onDelete }) => {
                     {story.content || 'গল্পের কোনো বিষয়বস্তু নেই...'}
                   </p>
                   <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-50">
-                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${story.maturity === MaturityLevel.MATURE ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                      {story.maturity === MaturityLevel.MATURE ? '18+' : 'Safe'}
-                    </span>
+                    <div className="flex gap-2">
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${story.maturity === MaturityLevel.MATURE ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                        {story.maturity === MaturityLevel.MATURE ? '18+' : 'Safe'}
+                      </span>
+                      {story.genre === 'Imported' && (
+                        <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase bg-blue-50 text-blue-600">
+                          Imported
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-gray-400">
                       {new Date(story.updatedAt).toLocaleDateString()}
                     </span>
