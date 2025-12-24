@@ -61,6 +61,11 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
       
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      
+      // Browsers often require a user interaction to resume audio context
+      if (inputCtx.state === 'suspended') await inputCtx.resume();
+      if (outputCtx.state === 'suspended') await outputCtx.resume();
+      
       audioContextRef.current = inputCtx;
       outputAudioContextRef.current = outputCtx;
 
@@ -120,10 +125,13 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
               sourcesRef.current.add(source);
             }
           },
-          onclose: () => setIsSessionActive(false),
+          onclose: () => {
+            setIsSessionActive(false);
+            setStatus('সেশন শেষ হয়েছে');
+          },
           onerror: (e) => {
             console.error(e);
-            setStatus('Error occurred');
+            setStatus('সংযোগ বিচ্ছিন্ন হয়েছে');
           },
         },
         config: {
@@ -134,7 +142,9 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
         }
       });
       sessionPromiseRef.current = sessionPromise;
-    } catch (err) { setStatus('Error'); }
+    } catch (err) { 
+      setStatus('ভয়েস স্টুডিও চালু করতে ত্রুটি হয়েছে'); 
+    }
   };
 
   const stopSession = async () => {
@@ -142,7 +152,6 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
       const session = await sessionPromiseRef.current;
       session.close();
       
-      // Filter out meta-talk and only take user's creative parts if in dictation
       const finalContent = transcription
         .map(t => mode === 'dictation' && t.role === 'ai' ? '' : t.text)
         .filter(t => t !== '')
@@ -157,8 +166,6 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
   return (
     <div className={`flex-1 p-8 flex flex-col items-center justify-center transition-colors duration-500 ${isMature ? 'bg-[#0a050d]' : 'bg-red-50/30'}`}>
       <div className={`w-full max-w-3xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[85vh] border transition-colors ${isMature ? 'bg-[#150a1d] border-purple-900/40' : 'bg-white border-red-100'}`}>
-        
-        {/* Header with Mode Toggle */}
         <div className={`p-8 text-white flex flex-col items-center transition-colors ${isMature ? 'bg-purple-900' : 'bg-red-900'}`}>
           <div className="flex items-center justify-between w-full mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -166,25 +173,13 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
             </h2>
             {!isSessionActive && (
               <div className="bg-black/20 p-1 rounded-xl flex gap-1">
-                <button 
-                  onClick={() => setMode('dictation')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${mode === 'dictation' ? 'bg-white text-red-950 shadow-lg' : 'text-white/60 hover:text-white'}`}
-                >
-                  ডিক্টেশন (Dictation)
-                </button>
-                <button 
-                  onClick={() => setMode('cowriter')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${mode === 'cowriter' ? 'bg-white text-red-950 shadow-lg' : 'text-white/60 hover:text-white'}`}
-                >
-                  কো-রাইটার (Co-writer)
-                </button>
+                <button onClick={() => setMode('dictation')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${mode === 'dictation' ? 'bg-white text-red-950 shadow-lg' : 'text-white/60 hover:text-white'}`}>ডিক্টেশন</button>
+                <button onClick={() => setMode('cowriter')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${mode === 'cowriter' ? 'bg-white text-red-950 shadow-lg' : 'text-white/60 hover:text-white'}`}>কো-রাইটার</button>
               </div>
             )}
           </div>
           <p className="text-sm opacity-80 animate-pulse">{status}</p>
         </div>
-
-        {/* Transcription Display */}
         <div className={`flex-1 p-10 overflow-y-auto space-y-6 ${isMature ? 'bg-black/20' : 'bg-gray-50/50'}`}>
           {transcription.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-30 select-none">
@@ -193,48 +188,18 @@ const VoiceStudio: React.FC<VoiceStudioProps> = ({ onContentGenerated, maturity 
             </div>
           )}
           {transcription.map((t, i) => (
-            <div 
-              key={i} 
-              className={`flex flex-col ${t.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-4 duration-500`}
-            >
-              <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 px-2 ${isMature ? 'text-purple-400' : 'text-red-800'}`}>
-                {t.role === 'user' ? 'আপনি (User)' : 'AI লেখক'}
-              </div>
-              <div className={`p-5 rounded-3xl max-w-[85%] text-lg leading-relaxed shadow-sm ${
-                t.role === 'user' 
-                  ? (isMature ? 'bg-purple-700 text-white' : 'bg-red-800 text-white') 
-                  : (isMature ? 'bg-white/10 text-purple-100' : 'bg-white text-gray-800 border border-red-50')
-              }`}>
-                {t.text}
-              </div>
+            <div key={i} className={`flex flex-col ${t.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+              <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 px-2 ${isMature ? 'text-purple-400' : 'text-red-800'}`}>{t.role === 'user' ? 'আপনি' : 'AI লেখক'}</div>
+              <div className={`p-5 rounded-3xl max-w-[85%] text-lg leading-relaxed shadow-sm ${t.role === 'user' ? (isMature ? 'bg-purple-700 text-white' : 'bg-red-800 text-white') : (isMature ? 'bg-white/10 text-purple-100' : 'bg-white text-gray-800 border border-red-50')}`}>{t.text}</div>
             </div>
           ))}
         </div>
-
-        {/* Control Button */}
         <div className={`p-10 flex flex-col items-center gap-4 ${isMature ? 'bg-black/40' : 'bg-white'}`}>
-          <button 
-            onClick={isSessionActive ? stopSession : startSession} 
-            className={`group relative w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 active:scale-95 ${
-              isSessionActive 
-                ? 'bg-white border-8 border-red-500 ring-8 ring-red-500/20' 
-                : (isMature ? 'bg-purple-700 hover:bg-purple-600' : 'bg-red-800 hover:bg-red-900')
-            }`}
-          >
-            {isSessionActive ? (
-              <div className="w-8 h-8 bg-red-600 rounded-lg animate-pulse" />
-            ) : (
-              <span className="text-4xl text-white drop-shadow-lg">🎤</span>
-            )}
-            
-            {isSessionActive && (
-              <div className="absolute inset-[-12px] border-2 border-red-500 rounded-full animate-ping opacity-20" />
-            )}
+          <button onClick={isSessionActive ? stopSession : startSession} className={`group relative w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 active:scale-95 ${isSessionActive ? 'bg-white border-8 border-red-500 ring-8 ring-red-500/20' : (isMature ? 'bg-purple-700 hover:bg-purple-600' : 'bg-red-800 hover:bg-red-900')}`}>
+            {isSessionActive ? <div className="w-8 h-8 bg-red-600 rounded-lg animate-pulse" /> : <span className="text-4xl text-white drop-shadow-lg">🎤</span>}
+            {isSessionActive && <div className="absolute inset-[-12px] border-2 border-red-500 rounded-full animate-ping opacity-20" />}
           </button>
-          
-          <p className={`text-xs font-bold uppercase tracking-widest ${isMature ? 'text-purple-400' : 'text-red-800'}`}>
-            {isSessionActive ? 'সেশন শেষ করতে ট্যাপ করুন' : 'কথা বলা শুরু করুন'}
-          </p>
+          <p className={`text-xs font-bold uppercase tracking-widest ${isMature ? 'text-purple-400' : 'text-red-800'}`}>{isSessionActive ? 'সেশন শেষ করতে ট্যাপ করুন' : 'কথা বলা শুরু করুন'}</p>
         </div>
       </div>
     </div>

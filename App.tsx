@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, MaturityLevel, Story, AppSettings } from './types';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -11,25 +11,51 @@ import MediaLab from './components/MediaLab';
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.EDITOR);
   const [stories, setStories] = useState<Story[]>(() => {
-    const saved = localStorage.getItem('kothakoli_stories');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('kothakoli_stories');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
-  const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
+  const [activeStoryId, setActiveStoryId] = useState<string | null>(() => {
+    return localStorage.getItem('kothakoli_last_active_id');
+  });
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('kothakoli_settings');
-    return saved ? JSON.parse(saved) : {
-      language: 'Bengali',
-      maturityLevel: MaturityLevel.GENERAL,
-      isConfirmedAdult: false,
-      blurMatureThumbnails: true,
-      defaultImageQuality: '1K',
-      isDarkMode: false
-    };
+    try {
+      const saved = localStorage.getItem('kothakoli_settings');
+      return saved ? JSON.parse(saved) : {
+        language: 'Bengali',
+        maturityLevel: MaturityLevel.GENERAL,
+        isConfirmedAdult: false,
+        blurMatureThumbnails: true,
+        defaultImageQuality: '1K',
+        isDarkMode: false
+      };
+    } catch (e) {
+      return {
+        language: 'Bengali',
+        maturityLevel: MaturityLevel.GENERAL,
+        isConfirmedAdult: false,
+        blurMatureThumbnails: true,
+        defaultImageQuality: '1K',
+        isDarkMode: false
+      };
+    }
   });
 
+  const saveTimeoutRef = useRef<number | null>(null);
+
   useEffect(() => {
-    localStorage.setItem('kothakoli_stories', JSON.stringify(stories));
-  }, [stories]);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = window.setTimeout(() => {
+      localStorage.setItem('kothakoli_stories', JSON.stringify(stories));
+      if (activeStoryId) localStorage.setItem('kothakoli_last_active_id', activeStoryId);
+    }, 1000);
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [stories, activeStoryId]);
 
   useEffect(() => {
     localStorage.setItem('kothakoli_settings', JSON.stringify(settings));
@@ -40,7 +66,7 @@ const App: React.FC = () => {
   const handleCreateStory = () => {
     const newStory: Story = {
       id: Date.now().toString(),
-      title: 'নতুন গল্প',
+      title: 'নতুন গল্প ' + (stories.length + 1),
       content: '',
       genre: 'Drama',
       maturity: settings.maturityLevel,
@@ -48,7 +74,7 @@ const App: React.FC = () => {
       updatedAt: Date.now(),
       assets: []
     };
-    setStories([newStory, ...stories]);
+    setStories(prev => [newStory, ...prev]);
     setActiveStoryId(newStory.id);
     setCurrentView(View.EDITOR);
   };
@@ -63,7 +89,7 @@ const App: React.FC = () => {
       updatedAt: Date.now(),
       assets: []
     };
-    setStories([newStory, ...stories]);
+    setStories(prev => [newStory, ...prev]);
     setActiveStoryId(newStory.id);
     setCurrentView(View.EDITOR);
   };
@@ -73,8 +99,10 @@ const App: React.FC = () => {
   };
 
   const deleteStory = (id: string) => {
-    setStories(prev => prev.filter(s => s.id !== id));
-    if (activeStoryId === id) setActiveStoryId(null);
+    if (window.confirm("আপনি কি নিশ্চিতভাবে এই গল্পটি মুছে ফেলতে চান?")) {
+      setStories(prev => prev.filter(s => s.id !== id));
+      if (activeStoryId === id) setActiveStoryId(null);
+    }
   };
 
   const updateSettings = (newSettings: AppSettings) => {
@@ -82,11 +110,12 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`flex h-screen overflow-hidden transition-colors duration-500 ${settings.isDarkMode ? 'bg-gray-950 text-white' : 'bg-[#fdfbf7] text-gray-900'}`}>
+    <div className={`flex h-screen overflow-hidden transition-colors duration-500 font-sans ${settings.isDarkMode ? 'bg-gray-950 text-white' : 'bg-[#fdfbf7] text-gray-900'}`}>
       <Sidebar currentView={currentView} onNavigate={setCurrentView} onNewStory={handleCreateStory} />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {currentView === View.EDITOR && activeStory && (
           <Editor 
+            key={activeStory.id}
             story={activeStory} 
             onUpdate={(u) => updateStory(activeStory.id, u)} 
             settings={settings}
@@ -95,9 +124,10 @@ const App: React.FC = () => {
           />
         )}
         {currentView === View.EDITOR && !activeStory && (
-          <div className="flex-1 flex items-center justify-center flex-col space-y-4">
-            <h2 className={`text-3xl font-bold ${settings.isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>আপনার গল্প শুরু করুন</h2>
-            <button onClick={handleCreateStory} className="px-6 py-3 bg-red-800 text-white rounded-lg hover:bg-red-900 transition-colors">নতুন গল্প লিখুন</button>
+          <div className="flex-1 flex items-center justify-center flex-col space-y-6">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-red-800 text-4xl shadow-inner">✍️</div>
+            <h2 className={`text-3xl font-bold ${settings.isDarkMode ? 'text-gray-400' : 'text-gray-300'}`}>আপনার গল্প শুরু করুন</h2>
+            <button onClick={handleCreateStory} className="px-8 py-4 bg-red-800 text-white rounded-2xl font-bold hover:bg-red-900 transform hover:scale-105 transition-all shadow-xl">নতুন গল্প লিখুন</button>
           </div>
         )}
         {currentView === View.LIBRARY && (
@@ -112,10 +142,10 @@ const App: React.FC = () => {
             onContentGenerated={(content) => {
               if (activeStoryId) {
                 const s = stories.find(st => st.id === activeStoryId);
-                updateStory(activeStoryId, { content: (s?.content || '') + "\n" + content });
+                updateStory(activeStoryId, { content: (s?.content || '') + "\n\n" + content });
               } else {
                 const newId = Date.now().toString();
-                setStories([{ id: newId, title: 'ভয়েস গল্প', content, genre: 'Voice', maturity: settings.maturityLevel, updatedAt: Date.now(), assets: [] }, ...stories]);
+                setStories(prev => [{ id: newId, title: 'ভয়েস গল্প', content, genre: 'Voice', maturity: settings.maturityLevel, updatedAt: Date.now(), assets: [] }, ...prev]);
                 setActiveStoryId(newId);
               }
               setCurrentView(View.EDITOR);
@@ -126,7 +156,10 @@ const App: React.FC = () => {
           <MediaLab story={activeStory} onUpdate={(u) => updateStory(activeStory.id, u)} isDarkMode={settings.isDarkMode} />
         )}
         {currentView === View.MEDIA_LAB && !activeStory && (
-          <div className={`flex-1 flex items-center justify-center ${settings.isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>দয়া করে প্রথমে একটি গল্প নির্বাচন করুন</div>
+          <div className={`flex-1 flex items-center justify-center flex-col space-y-4 ${settings.isDarkMode ? 'text-gray-700' : 'text-gray-300'}`}>
+            <div className="text-6xl">🎞️</div>
+            <p className="text-xl font-medium">দয়া করে প্রথমে একটি গল্প নির্বাচন করুন</p>
+          </div>
         )}
       </main>
     </div>
