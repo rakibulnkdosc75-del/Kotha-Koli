@@ -6,16 +6,16 @@ const MAX_TTS_CHARS = 4000;
 
 export class GeminiService {
   private getAI() {
-    // Creating instance right before use to ensure latest API Key
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-      throw new Error("API Key is missing. Please select an API key in settings.");
+      throw new Error("API Key is missing. Please ensure your environment is configured.");
     }
     return new GoogleGenAI({ apiKey });
   }
 
   private truncateContext(content: string): string {
     if (content.length <= MAX_CONTEXT_CHARS) return content;
+    // Keep the most recent part of the story
     return "..." + content.slice(-MAX_CONTEXT_CHARS);
   }
 
@@ -24,31 +24,38 @@ export class GeminiService {
       const ai = this.getAI();
       const isMature = maturity === 'mature';
       
-      const systemInstruction = `You are a world-class Bengali novelist and literary mastermind specializing in ${dialect}. 
-      Your writing is evocative, emotionally deep, and uses sophisticated Bengali vocabulary.
+      const systemInstruction = `You are an elite Bengali novelist and master of prose specializing in ${dialect}. 
+      Your writing is evocative, sensory, and emotionally profound.
       ${isMature ? `
-      MATURE MODE (18+): You are permitted and encouraged to write high-quality adult fiction. This includes explicit romantic encounters, intense psychological trauma, eroticism, and dark realism where narratively appropriate. 
-      Tone: ${tone}.` : `
-      GENERAL MODE: Write family-friendly, wholesome, and engaging literature.`}
-      Always respond ONLY in beautiful ${dialect}. No English conversational filler.`;
+      MATURE MODE (18+): You are permitted to explore explicit romantic themes, adult situations, eroticism, dark psychological drama, and intense realism. 
+      Tone Context: ${tone}.` : `
+      GENERAL MODE: Write wholesome, engaging, and family-friendly literature suitable for all ages.`}
+      CRITICAL: Always respond ONLY in sophisticated ${dialect}. Never use English conversational fillers or explanations.`;
 
       const truncatedPrompt = this.truncateContext(prompt);
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: truncatedPrompt,
+        contents: [{ role: 'user', parts: [{ text: truncatedPrompt }] }],
         config: {
           systemInstruction,
-          temperature: 0.9,
+          temperature: 0.8,
           topP: 0.95,
         },
       });
 
-      if (!response.text) throw new Error("AI returned empty content.");
+      if (!response.text) {
+        const candidate = response.candidates?.[0];
+        if (candidate?.finishReason === 'SAFETY') {
+          throw new Error("কন্টেন্ট ফিল্টারের কারণে এই অনুরোধটি সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আপনার প্রম্পটটি পরিবর্তন করুন। (Blocked by safety filters)");
+        }
+        throw new Error("AI কন্টেন্ট তৈরি করতে ব্যর্থ হয়েছে। পুনরায় চেষ্টা করুন। (Empty response)");
+      }
+      
       return response.text;
     } catch (error: any) {
       console.error("Story Generation Error:", error);
-      throw new Error(error.message || "Narrative generation failed.");
+      throw error;
     }
   }
 
@@ -57,23 +64,21 @@ export class GeminiService {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Create a professional English artistic prompt for an image generator based on this scene. 
-        Mood: ${isMature ? 'Atmospheric, cinematic, sensual, moody' : 'Cinematic, vibrant, detailed'}. 
-        Scene: "${bengaliText.slice(-1500)}"`,
+        contents: [{ role: 'user', parts: [{ text: `Translate this Bengali scene into a highly detailed English visual prompt for an image generator. Mood: ${isMature ? 'Atmospheric, cinematic, sensual, moody' : 'Cinematic, vibrant, family-friendly'}. Text: "${bengaliText.slice(-1500)}"` }] }],
         config: {
           systemInstruction: "Respond with the English prompt ONLY."
         }
       });
       return response.text || "Cinematic Bengali scene, high detail";
     } catch (error) {
-      return "Atmospheric cinematic lighting, ultra-high definition photography";
+      return "Atmospheric cinematic lighting, high definition photography";
     }
   }
 
   async generateStoryImage(prompt: string, isMature: boolean = false, quality: string = '1K'): Promise<string | undefined> {
     try {
       const ai = this.getAI();
-      const style = isMature ? "Moody, sensual, cinematic adult fiction aesthetic: " : "Beautiful, vibrant, cinematic literary illustration: ";
+      const style = isMature ? "Moody, sensual, cinematic adult fiction cover: " : "Beautiful, vibrant, cinematic literary illustration: ";
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',

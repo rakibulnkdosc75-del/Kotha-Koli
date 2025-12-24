@@ -65,6 +65,17 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
     setIsReading(false);
   }, []);
 
+  const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> => {
+    const dataInt16 = new Int16Array(data.buffer);
+    const frameCount = dataInt16.length / numChannels;
+    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+    for (let channel = 0; channel < numChannels; channel++) {
+      const channelData = buffer.getChannelData(channel);
+      for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+    return buffer;
+  };
+
   const handleToggleSpeech = async () => {
     if (isReading) {
       stopAudio();
@@ -80,16 +91,14 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
         }
         const ctx = audioContextRef.current;
         if (ctx.state === 'suspended') await ctx.resume();
+        
         const binaryString = atob(base64Audio);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-        const dataInt16 = new Int16Array(bytes.buffer);
-        const frameCount = dataInt16.length;
-        const buffer = ctx.createBuffer(1, frameCount, 24000);
-        const channelData = buffer.getChannelData(0);
-        for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i] / 32768.0;
+        
+        const audioBuffer = await decodeAudioData(bytes, ctx, 24000, 1);
         const source = ctx.createBufferSource();
-        source.buffer = buffer;
+        source.buffer = audioBuffer;
         source.connect(ctx.destination);
         source.onended = () => setIsReading(false);
         audioSourceRef.current = source;
@@ -98,6 +107,7 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
         setIsReading(false);
       }
     } catch (error) {
+      console.error(error);
       setIsReading(false);
     }
   };
@@ -143,12 +153,12 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
     if (!prompt.trim() && !story.content) return;
     setIsGenerating(true);
     try {
-      const fullContext = `Instructions: ${prompt}. Current Story: ${story.content}`;
+      const fullContext = `Instruction: ${prompt}. Current Narrative Flow: ${story.content}`;
       const result = await gemini.generateStory(fullContext, story.maturity, story.tone, settings.language);
       onUpdate({ content: story.content + (story.content ? "\n\n" : "") + result });
       setPrompt('');
-    } catch (error) {
-      alert('AI জেনারেশন ব্যর্থ হয়েছে। কন্টেন্ট পলিসি বা টেক্সট লেন্থ চেক করুন।');
+    } catch (error: any) {
+      alert(error.message || 'AI জেনারেশন ব্যর্থ হয়েছে। সম্ভবত লেখাটি খুব দীর্ঘ বা সুরক্ষিত কন্টেন্ট ফিল্টার করা হয়েছে।');
     } finally {
       setIsGenerating(false);
     }
@@ -158,12 +168,12 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
     if (!prompt.trim() && !story.content) return;
     setIsGenerating(true);
     try {
-      const context = `Task: Sensory description. Context: ${prompt || story.content.slice(-2000)}`;
+      const context = `Provide a vivid, sensory atmospheric description based on: ${prompt || story.content.slice(-2000)}`;
       const result = await gemini.generateStory(context, story.maturity, story.tone, settings.language);
       onUpdate({ content: story.content + "\n\n[পরিবেশ বর্ণনা]: " + result });
       setPrompt('');
-    } catch (error) {
-      alert('বর্ণনা তৈরি করা সম্ভব হয়নি।');
+    } catch (error: any) {
+      alert(error.message || 'বর্ণনা তৈরি করা সম্ভব হয়নি।');
     } finally {
       setIsGenerating(false);
     }
@@ -189,7 +199,7 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
         setPrompt('');
       }
     } catch (error) {
-      alert('ছবি জেনারেট করা সম্ভব হয়নি।');
+      alert('ছবি জেনারেট করা সম্ভব হয়নি। অনুগ্রহ করে আপনার API কী চেক করুন।');
     } finally {
       setIsGenerating(false);
     }
@@ -212,6 +222,10 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
     }
   };
 
+  const tones: StoryTone[] = isMatureMode 
+    ? ['Standard', 'Romantic', 'Erotic', 'Dark', 'Psychological'] 
+    : ['Standard', 'Romantic', 'Dark'];
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-500 ${isMatureMode ? 'bg-[#0a050d]' : (isDarkMode ? 'bg-gray-950' : 'bg-white')}`}>
       {/* Premium Header */}
@@ -221,7 +235,7 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
             type="text"
             value={story.title}
             onChange={(e) => onUpdate({ title: e.target.value })}
-            className={`text-2xl font-bold bg-transparent border-none focus:ring-0 w-full transition-colors ${isMatureMode ? 'text-purple-100' : (isDarkMode ? 'text-gray-100' : 'text-red-900')}`}
+            className={`text-2xl font-bold bg-transparent border-none focus:ring-0 w-full transition-colors ${isMatureMode ? 'text-purple-100' : (isDarkMode ? 'text-red-900' : 'text-red-900')}`}
             placeholder="গল্পের নাম..."
           />
         </div>
@@ -239,7 +253,7 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onUpdateSett
             onChange={(e) => onUpdate({ tone: e.target.value as StoryTone })}
             className={`px-3 py-2 rounded-xl text-xs font-bold border outline-none transition-colors ${isMatureMode ? 'bg-purple-900/30 border-purple-800 text-purple-300' : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700')}`}
           >
-            {['Standard', 'Romantic', 'Erotic', 'Dark', 'Psychological'].map(t => <option key={t} value={t}>{t}</option>)}
+            {tones.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           
           <button onClick={onNavigateToMedia} className="p-3 rounded-2xl hover:bg-black/5 transition-all" title="Media Lab">🎬</button>
