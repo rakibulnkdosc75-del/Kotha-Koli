@@ -129,6 +129,26 @@ export class GeminiService {
     }
     return undefined;
   }
+
+  async generateSpeech(text: string, tone: string = 'Standard'): Promise<string | undefined> {
+    const ai = this.getAI();
+    const voiceName = tone === 'Romantic' || tone === 'Erotic' ? 'Kore' : 'Puck'; // Kore is softer, Puck is standard narrative
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Narrate this Bengali story with a ${tone.toLowerCase()} tone: ${text}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName },
+          },
+        },
+      },
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  }
 }
 
 export const gemini = new GeminiService();

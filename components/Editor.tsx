@@ -15,10 +15,14 @@ type AIAction = 'write' | 'image' | 'describe';
 const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onNavigateToMedia }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isReading, setIsReading] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<AIAction>('write');
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   
   const isMatureMode = story.maturity === MaturityLevel.MATURE;
 
@@ -29,8 +33,84 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onNavigateTo
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      stopAudio();
+    };
   }, []);
+
+  const stopAudio = () => {
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop();
+      } catch (e) {}
+      audioSourceRef.current = null;
+    }
+    setIsReading(false);
+  };
+
+  const decode = (base64: string) => {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
+
+  const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> => {
+    const dataInt16 = new Int16Array(data.buffer);
+    const frameCount = dataInt16.length / numChannels;
+    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+    for (let channel = 0; channel < numChannels; channel++) {
+      const channelData = buffer.getChannelData(channel);
+      for (let i = 0; i < frameCount; i++) {
+        channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+      }
+    }
+    return buffer;
+  };
+
+  const handleToggleSpeech = async () => {
+    if (isReading) {
+      stopAudio();
+      return;
+    }
+
+    if (!story.content.trim()) {
+      alert("গল্পে কোনো লেখা নেই যা পড়া যাবে।");
+      return;
+    }
+
+    setIsReading(true);
+    try {
+      const base64Audio = await gemini.generateSpeech(story.content, story.tone);
+      if (base64Audio) {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        }
+        const ctx = audioContextRef.current;
+        const audioData = decode(base64Audio);
+        const audioBuffer = await decodeAudioData(audioData, ctx, 24000, 1);
+        
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        source.onended = () => setIsReading(false);
+        
+        audioSourceRef.current = source;
+        source.start(0);
+      } else {
+        setIsReading(false);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("TTS generation failed.");
+      setIsReading(false);
+    }
+  };
 
   const handleAIDirective = async () => {
     if (selectedAction === 'write') {
@@ -87,7 +167,7 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onNavigateTo
       return;
     }
 
-    setIsGenerating(true); // Re-use the same loader for simplicity in the toolbar
+    setIsGenerating(true);
     try {
       const hasKey = await (window as any).aistudio?.hasSelectedApiKey();
       if (!hasKey) {
@@ -180,6 +260,20 @@ const Editor: React.FC<EditorProps> = ({ story, onUpdate, settings, onNavigateTo
           />
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={handleToggleSpeech}
+            className={`p-2.5 rounded-full transition-all flex items-center justify-center ${
+              isReading 
+                ? 'bg-red-600 text-white animate-pulse' 
+                : isMatureMode 
+                  ? 'bg-purple-900/40 text-purple-400 hover:bg-purple-900' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            title={isReading ? "পড়া বন্ধ করুন" : "গল্পটি শুনুন"}
+          >
+            {isReading ? <span className="text-sm">⏹️</span> : <span className="text-lg">🔊</span>}
+          </button>
+
           <select 
             value={story.tone || 'Standard'}
             onChange={(e) => onUpdate({ tone: e.target.value as StoryTone })}
