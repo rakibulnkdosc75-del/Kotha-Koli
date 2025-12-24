@@ -1,0 +1,8 @@
+{
+  "name": "KothaKoli - Advanced Bengali Story Studio",
+  "description": "A premier Bengali storytelling platform featuring AI-driven narrative generation, image creation, video animation, and voice-to-story technology.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
