@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AppSettings, MaturityLevel } from '../types';
 
 interface SettingsProps {
@@ -8,8 +8,23 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
+  const [showAgeModal, setShowAgeModal] = useState(false);
+
+  const toggleMaturity = (level: MaturityLevel) => {
+    if (level === MaturityLevel.MATURE && !settings.isConfirmedAdult) {
+      setShowAgeModal(true);
+    } else {
+      onUpdate({ ...settings, maturityLevel: level });
+    }
+  };
+
+  const confirmAge = () => {
+    onUpdate({ ...settings, maturityLevel: MaturityLevel.MATURE, isConfirmedAdult: true });
+    setShowAgeModal(false);
+  };
+
   return (
-    <div className="flex-1 p-10 bg-white">
+    <div className="flex-1 p-10 bg-white overflow-y-auto">
       <div className="max-w-2xl mx-auto">
         <h2 className="text-3xl font-bold text-red-950 mb-8">সেটিংস (Settings)</h2>
         
@@ -18,7 +33,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
             <h3 className="text-lg font-bold mb-6 flex items-center gap-2">🔞 কন্টেন্ট ম্যাজুরিটি (Content Maturity)</h3>
             <div className="grid grid-cols-2 gap-4">
               <button 
-                onClick={() => onUpdate({ ...settings, maturityLevel: MaturityLevel.GENERAL })}
+                onClick={() => toggleMaturity(MaturityLevel.GENERAL)}
                 className={`p-6 rounded-2xl border-2 transition-all text-left ${
                   settings.maturityLevel === MaturityLevel.GENERAL 
                     ? 'border-green-600 bg-green-50' 
@@ -27,25 +42,36 @@ const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
               >
                 <div className="text-xl mb-2">🌱</div>
                 <div className="font-bold">General</div>
-                <div className="text-xs text-gray-500 mt-1">সকল বয়সের জন্য উপযুক্ত গল্প</div>
+                <div className="text-xs text-gray-500 mt-1">Wholesome storytelling for all.</div>
               </button>
               
               <button 
-                onClick={() => onUpdate({ ...settings, maturityLevel: MaturityLevel.MATURE })}
+                onClick={() => toggleMaturity(MaturityLevel.MATURE)}
                 className={`p-6 rounded-2xl border-2 transition-all text-left ${
                   settings.maturityLevel === MaturityLevel.MATURE 
-                    ? 'border-red-600 bg-red-50' 
+                    ? 'border-purple-600 bg-purple-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="text-xl mb-2">🔥</div>
                 <div className="font-bold">Adult (18+)</div>
-                <div className="text-xs text-gray-500 mt-1">প্রাপ্তবয়স্কদের জন্য থিম এবং কন্টেন্ট</div>
+                <div className="text-xs text-gray-500 mt-1">Unlock adult themes & dark fiction.</div>
               </button>
             </div>
-            <p className="mt-4 text-xs text-gray-400 px-2 italic">
-              * নোট: '18+' সেটিংটি AI-কে আরও জটিল এবং প্রাপ্তবয়স্ক থিম নিয়ে কাজ করতে সক্ষম করে।
-            </p>
+
+            {settings.maturityLevel === MaturityLevel.MATURE && (
+              <div className="mt-6 p-4 bg-purple-100 rounded-xl border border-purple-200">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={settings.blurMatureThumbnails}
+                    onChange={(e) => onUpdate({ ...settings, blurMatureThumbnails: e.target.checked })}
+                    className="w-5 h-5 accent-purple-700"
+                  />
+                  <span className="text-sm font-bold text-purple-900">Blur Mature Content in Library</span>
+                </label>
+              </div>
+            )}
           </section>
 
           <section className="bg-gray-50 p-8 rounded-3xl border">
@@ -61,16 +87,34 @@ const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
               <option value="Sylhet">Sylheti Dialect (সিলটী)</option>
             </select>
           </section>
+        </div>
+      </div>
 
-          <div className="pt-6 border-t flex items-center justify-between text-gray-400">
-            <span className="text-sm">Version 1.2.0 - Stable Release</span>
-            <div className="flex gap-4">
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-xs text-red-600 hover:underline">Billing Docs</a>
-              <span className="text-xs">© 2024 KothaKoli AI Studio</span>
+      {showAgeModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="bg-[#150a1d] text-white p-10 rounded-[40px] max-w-md border border-purple-500/30 text-center shadow-2xl">
+            <div className="text-6xl mb-6">🔞</div>
+            <h2 className="text-2xl font-bold mb-4">Are you 18 or older?</h2>
+            <p className="text-purple-300 mb-8 leading-relaxed">
+              Adult mode allows the AI to generate content with explicit themes, dark psychological narratives, and sensual descriptions.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={confirmAge}
+                className="w-full py-4 bg-purple-600 hover:bg-purple-700 rounded-2xl font-bold transition-all"
+              >
+                Yes, I am over 18
+              </button>
+              <button 
+                onClick={() => setShowAgeModal(false)}
+                className="w-full py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-medium transition-all"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

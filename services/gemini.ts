@@ -2,39 +2,49 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 
 export class GeminiService {
-  private ai: GoogleGenAI;
-
-  constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Use a method to get a fresh instance to avoid stale keys
+  private getAI() {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
-  async generateStory(prompt: string, maturity: string): Promise<string> {
-    const systemInstruction = `You are a master Bengali storyteller, novelist, and litterateur. 
-    You write high-quality stories, novels (Uponnash), and short stories in beautiful, fluent Bengali.
-    Current Maturity Level: ${maturity === 'mature' ? 'Adult (18+), explicit themes allowed where narratively relevant' : 'General Audience'}.
-    Always respond in Bengali. Use rich vocabulary.`;
+  async generateStory(prompt: string, maturity: string, tone: string = 'Standard'): Promise<string> {
+    const isMature = maturity === 'mature';
+    const ai = this.getAI();
+    const systemInstruction = `You are an elite Bengali litterateur and novelist. 
+    You specialize in high-quality Bengali prose.
+    ${isMature ? `
+    SETTING: MATURE (18+). 
+    You are permitted and encouraged to explore explicit adult themes, intense psychological drama, and sensual literary descriptions (Adi-Ras) where it serves the narrative. 
+    Tone context: ${tone}.` : `
+    SETTING: GENERAL AUDIENCE.
+    Write wholesome, engaging, and family-friendly stories.`}
+    Always respond in beautiful, fluent Bengali.`;
 
-    const response = await this.ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         systemInstruction,
-        temperature: 0.8,
+        temperature: 0.85,
       },
     });
 
     return response.text || '';
   }
 
-  async generateStoryImage(prompt: string): Promise<string | undefined> {
-    const response = await this.ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+  async generateStoryImage(prompt: string, isMature: boolean = false, quality: string = '1K'): Promise<string | undefined> {
+    const ai = this.getAI();
+    const contextPrefix = isMature ? "Atmospheric, moody, cinematic, sensual aesthetic, artistic adult fiction style: " : "Wholesome, vibrant, cinematic: ";
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
       contents: {
-        parts: [{ text: `A cinematic, high-quality illustration for a Bengali story: ${prompt}` }],
+        parts: [{ text: `${contextPrefix} ${prompt}` }],
       },
       config: {
         imageConfig: {
           aspectRatio: "16:9",
+          imageSize: quality as any,
         },
       },
     });
@@ -48,7 +58,8 @@ export class GeminiService {
   }
 
   async editImage(base64Image: string, editPrompt: string): Promise<string | undefined> {
-    const response = await this.ai.models.generateContent({
+    const ai = this.getAI();
+    const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
@@ -72,10 +83,9 @@ export class GeminiService {
   }
 
   async generateVideoFromImage(base64Image: string, prompt: string): Promise<string | undefined> {
-    // Check for Veo Key selection (handled via window.aistudio in UI)
-    const veofai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const ai = this.getAI();
     
-    let operation = await veofai.models.generateVideos({
+    let operation = await ai.models.generateVideos({
       model: 'veo-3.1-fast-generate-preview',
       prompt: prompt,
       image: {
@@ -91,7 +101,7 @@ export class GeminiService {
 
     while (!operation.done) {
       await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await veofai.operations.getVideosOperation({ operation: operation });
+      operation = await ai.operations.getVideosOperation({ operation: operation });
     }
 
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
